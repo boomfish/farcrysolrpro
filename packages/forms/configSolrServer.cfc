@@ -9,6 +9,7 @@
 	<cfproperty ftSeq="150" ftFieldset="Server Settings" name="threadCount" type="integer" default="5" required="true" ftDefault="5" ftType="integer" ftValidation="required,digits" ftLabel="Thread Count" ftHint="The number of background threads used to empty the queue (default: 5)" />
 	<cfproperty ftSeq="160" ftFieldset="Server Settings" name="binaryEnabled" type="boolean" default="1" required="true" ftDefault="1" ftType="boolean" ftLabel="Binary Enabled?" ftHint="Should we use the faster binary data transfer format? (default: true)" /> 
 	<cfproperty ftSeq="170" ftFieldset="Server Settings" name="instanceDir" type="nstring" default="" ftDefault="expandPath('/farcry/projects/' & application.applicationName & '/solr')" ftDefaultType="evaluate" ftType="string" required="true" ftLabel="Solr Collection Instance Dir." ftHint="Choose a location with sufficient disk space for the collection." />
+	<cfproperty ftSeq="180" ftFieldset="Server Settings" name="templateDir" type="nstring" default="" ftDefault="expandPath('/farcry/plugins/farcrysolrpro/templates/')" ftDefaultType="evaluate" ftType="string" required="true" ftLabel="Solr Collection Template Dir." ftHint="If you have created a custom Solr configuration, specify your configuration template directory here. The path should end with a slash." />
 	
 	<cfproperty ftSeq="210" ftFieldset="Performace Settings" name="batchSize" type="integer" default="5000" required="true" ftDefault="5000" ftType="integer" ftValidation="required" ftLabel="Index Batch Size" ftHint="The number of records that will be processed for each content type during the scheduled task. Default: 5000" />
 	<cfproperty ftSeq="220" ftFieldset="Performace Settings" name="bLogSearches" type="boolean" default="1" required="true" ftDefault="1" ftType="boolean" ftLabel="Log Searches?" ftHint="Should searches be logged? Default: true" />
@@ -24,26 +25,30 @@
 		
 	<cffunction name="setupCollectionConfig" access="public" output="false" returntype="void" hint="Copies the collection configuration default templates to the collection conf directory.  Optionally, overwrites existing files.">
 		<cfargument name="instanceDir" type="string" default="#application.fapi.getConfig(key = 'solrserver', name = 'instanceDir', default = expandPath('/farcry/projects/' & application.applicationName & '/solr'))#" />
+		<cfargument name="templateDir" type="string" default="#application.fapi.getConfig(key = 'solrserver', name = 'templateDir', default = expandPath('/farcry/plugins/farcrysolrpro/templates/'))#" />
 		<cfargument name="bOverwrite" type="boolean" required="false" default="false" />
 		
-		<cfset var templateDir = expandPath("/farcry/plugins/farcrysolrpro/templates/") />
 		<cfset var tempPath = "" />
 		<cfset var subdir = "" />
 		<cfset var sourcedir = "" />
 		<cfset var destdir = "" />
 		<cfset var qTemplateFiles = "" />
 		
-		<cfdirectory action="list" directory="#templateDir#" recurse="true" name="qTemplateFiles" type="file" />
+		<cfif not directoryExists(arguments.templateDir)>
+			<cfset arguments.templateDir = expandPath('/farcry/plugins/farcrysolrpro/templates/') />
+		</cfif>
+		
+		<cfdirectory action="list" directory="#arguments.templateDir#" recurse="true" name="qTemplateFiles" type="file" />
 		
 		<cfloop query="qTemplateFiles">
 			
-			<cfset subdir = replace(qTemplateFiles.directory[qTemplateFiles.currentRow], templateDir, "", "one") />
+			<cfset subdir = replace(qTemplateFiles.directory[qTemplateFiles.currentRow], arguments.templateDir, "", "one") />
 			
 			<cfif subdir eq qTemplateFiles.directory[qTemplateFiles.currentRow]>
 				<cfset subdir = "" />
 			</cfif>
 		
-			<cfset sourcedir = templateDir & "/" & subdir />
+			<cfset sourcedir = arguments.templateDir & "/" & subdir />
 			<cfset destdir = arguments.instanceDir & "/" & subdir />
 			
 			<!--- create the dest directory if it doesn't exist --->
@@ -117,10 +122,10 @@
 		<cfset var instanceDir = arguments.config.instanceDir />
 
 		<!--- ensure instanceDir exists --->
-		<cfset setupInstanceDir(directory = instanceDir) />
+		<cfset setupInstanceDir(instanceDir = instanceDir) />
 		
 		<!--- copy template config files if necessary --->
-		<cfset setupCollectionConfig(directory = instanceDir) />
+		<cfset setupCollectionConfig(instanceDir = instanceDir, templateDir = arguments.config.templateDir) />
 		
 		<!--- create/update the core --->
 		<cfif application.fapi.getContentType("solrProContentType").isSolrRunning(config = arguments.config)>
